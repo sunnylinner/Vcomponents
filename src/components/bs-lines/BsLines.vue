@@ -10,11 +10,14 @@
 import G2 from '@antv/g2';
 import _ from 'lodash';
 import { DataSet } from '@antv/data-set';
+import $ from 'jquery';
 import GetData from './GetData';
 
 export default {
   name: 'BsLines',
   data() {
+    const self = this;
+
     const data = _.filter(GetData, (o) => o.type !== 'type0');
     const sliderData = _.filter(GetData, (o) => o.type === 'type0');
     const ds = new DataSet({
@@ -23,8 +26,25 @@ export default {
         end: _.maxBy(data, (o) => o.timestamp).timestamp,
       },
     });
-    return { data, ds, sliderData };
+    const charts = [];
+    let position = [200, 400];
+    position = new Proxy(position, {
+      get(target, key) {
+        return target[key];
+      },
+      set(target, key, value) {
+        _.debounce(() => {
+          self.getLine();
+        }, 50)();
+        return Reflect.set(target, key, value);
+      },
+    });
+
+    return {
+      data, ds, sliderData, charts, position,
+    };
   },
+  computed: {},
   methods: {
     getDv({ ds, data }) {
       return ds.createView().source(data).transform({
@@ -34,6 +54,27 @@ export default {
         },
       });
     },
+    // 画竖线
+    getLine() {
+      // debugger;
+      _.forEach(this.charts, (chart) => {
+        chart.guide().clear();
+        _.forEach(this.position, (item) => {
+          // eslint-disable-next-line no-underscore-dangle
+          const tmp = chart.getSnapRecords({ x: item, y: 0 })[0]._origin;
+          chart.guide().line({
+            start: () => [tmp.timestamp, 'start'],
+            end: () => [tmp.timestamp, 'end'],
+          });
+          chart.guide().text({
+            top: true,
+            position: () => [tmp.timestamp, 'median'],
+            content: tmp.value,
+          });
+          chart.repaint();
+        });
+      });
+    },
   },
   mounted() {
     this.$nextTick(() => {
@@ -41,10 +82,29 @@ export default {
       console.log(GetData);
       console.log(_.groupBy(this.data, 'type'));
 
-      const { ds, getDv, sliderData } = this;
+      const {
+        ds, getDv, sliderData, getLine, charts, position,
+      } = this;
 
-      // 创建只执行一次的slider创建函数
-      let setSlider = (chart) => {
+      const container = document.getElementById('bs-lines-2');
+
+      // 创建slider
+      const setSlider = () => {
+        const canvasDiv = document.createElement('div');
+        canvasDiv.id = 'bs-lines-2-slider';
+        container.appendChild(canvasDiv);
+        const chart = new G2.Chart({
+          container: 'bs-lines-2-slider',
+        });
+        chart.scale('timestamp', {
+          type: 'time',
+          range: [0, 1],
+          mask: 'YYYY-MM-DD HH:mm:ss SSS',
+        });
+        chart.scale('value', {
+          type: 'linear',
+          tickCount: 2,
+        });
         chart.interact('slider', {
           container: 'bs-lines-3',
           start: ds.state.start,
@@ -63,11 +123,11 @@ export default {
             ds.setState('end', endValue);
           },
         });
+        $('#bs-lines-2-slider').css('display', 'none');
       };
-      setSlider = _.once(setSlider);
+      setSlider();
 
       // 画多个折线图
-      const container = document.getElementById('bs-lines-2');
       _.forEach(_.groupBy(this.data, 'type'), (data, index) => {
         const canvasDiv = document.createElement('div');
         canvasDiv.id = `bs-lines-2-${index}`;
@@ -78,9 +138,11 @@ export default {
           height: 100,
           padding: [5, 50, 5, 50],
         });
+        charts.push(chart);
         chart.scale('timestamp', {
           type: 'time',
           range: [0, 1],
+          mask: 'YYYY-MM-DD HH:mm:ss SSS',
         });
         chart.scale('value', {
           type: 'linear',
@@ -125,10 +187,10 @@ export default {
         chart.source(dv);
         chart.line().position('timestamp*value');
         chart.render();
-
-        // 创建slider
-        setSlider(chart);
       });
+
+      position[0] = 50;
+      getLine(charts);
     });
   },
 };
