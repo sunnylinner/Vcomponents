@@ -1,19 +1,19 @@
 <template>
     <div id="bs-lines">
-        <div id="bs-lines-1">
-            <a-slider range :defaultValue="defaultValue" @afterChange="onAfterChange"/>
-        </div>
-        <div style="position: relative;">
-            <div id="bs-lines-2" style="display: inline-block;"></div>
-            <div id="bs-lines-4"
-                 style="display: inline-block;height: 100%;position: absolute;margin: -6px 0;">
-                <a-slider vertical v-model="yValue0"
-                          style="display: inline-block;" @afterChange="onYValueChange"/>
-                <a-slider vertical v-model="yValue1"
-                          style="display: inline-block;" @afterChange="onYValueChange"/>
+        <div id="bs-lines-left">
+            <div id="bs-lines-1">
+                <a-slider range v-model="value" @afterChange="onAfterChange"/>
             </div>
+            <div id="bs-lines-2"></div>
+            <div id="bs-lines-3"></div>
         </div>
-        <div id="bs-lines-3"></div>
+
+        <div id="bs-lines-right">
+            <a-slider vertical v-model="yValue0"
+                      style="display: inline-block;" @afterChange="onYValueChange"/>
+            <a-slider vertical v-model="yValue1"
+                      style="display: inline-block;" @afterChange="onYValueChange"/>
+        </div>
     </div>
 </template>
 
@@ -30,9 +30,6 @@ Vue.use(Slider);
 
 export default {
   name: 'BsLines',
-  // components: {
-  //   [Slider.name]: Slider,
-  // },
   data() {
     const self = this;
 
@@ -52,7 +49,7 @@ export default {
     // 当前选中的折线图
     let currentChart;
     // 竖线的坐标
-    let position = [200, 400];
+    let position = [0, 0];
     position = new Proxy(position, {
       get(target, key) {
         return target[key];
@@ -64,11 +61,9 @@ export default {
         return Reflect.set(target, key, value);
       },
     });
-    // 竖线初始坐标转换成横向滑动坐标
-    const defaultValue = [
-      ((position[0] - 50) / 700) * 100,
-      ((position[1] - 50) / 700) * 100,
-    ];
+    // 横向滑动坐标绑定值
+    const value = [30, 60];
+
     // 竖线滑动坐标绑定值
     const yValue0 = 50;
     const yValue1 = 50;
@@ -81,7 +76,7 @@ export default {
       sliderData,
       charts,
       position,
-      defaultValue,
+      value,
       currentChart,
       yValue0,
       yValue1,
@@ -154,7 +149,6 @@ export default {
         end: ds.state.end,
         xAxis: 'timestamp',
         yAxis: 'value',
-        width: 800,
         padding: [10, 50, 10, 50],
         data: sliderData,
         backgroundChart: {
@@ -189,7 +183,8 @@ export default {
         self.container.appendChild(canvasDiv);
         const chart = new G2.Chart({
           container: `bs-lines-2-${index}`,
-          width: 800,
+          // width: 800,
+          forceFit: true,
           height: 100,
           padding: [5, 50, 5, 50],
         });
@@ -283,9 +278,10 @@ export default {
      * 横向滑动结束触发事件
      * @param value 横向滑动坐标值
      */
-    onAfterChange(value) {
-      this.position[0] = (value[0] / 100) * 700 + 50;
-      this.position[1] = (value[1] / 100) * 700 + 50;
+    onAfterChange() {
+      const width = $('#bs-lines-left').width();
+      this.position[0] = (this.value[0] / 100) * (width - 100) + 50;
+      this.position[1] = (this.value[1] / 100) * (width - 100) + 50;
     },
     /**
      * 竖向滚动结束触发事件
@@ -317,6 +313,15 @@ export default {
       this.container = document.getElementById('bs-lines-2');
       this.setSlider();
       this.setCharts();
+      this.onAfterChange();
+      window.onresize = () => {
+        _.forEach(this.charts, ({ chart }) => {
+          const width = ($('#bs-lines').width() - $('#bs-lines-right').width()) - 10;
+          console.log(width);
+          $('#bs-lines-left').width(width);
+          chart.repaint();
+        });
+      };
     });
   },
 };
@@ -325,11 +330,20 @@ export default {
 <style scoped lang="scss">
 #bs-lines {
     padding: 10px;
+    display: flex;
 }
+
+#bs-lines-left {
+    flex-grow: 1;
+}
+
+#bs-lines-right {
+    width: 68px;
+    margin: -6px 0;
+}
+
 #bs-lines-1 {
-    & {
-        width: 800px;
-        padding: 0 50px;
-    }
+    width: 100%;
+    padding: 0 50px;
 }
 </style>
