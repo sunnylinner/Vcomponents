@@ -4,7 +4,14 @@
             <div id="bs-lines-1">
                 <a-slider range v-model="value" @afterChange="onAfterChange"/>
             </div>
-            <div id="bs-lines-2"></div>
+            <div id="bs-lines-2">
+                <draggable v-model="data"  @end="sliderRefresh">
+                    <bs-line v-for="item in data" :key="item[0].type" :data="item"
+                             :ds="ds" :get-dv="getDv" :change-y="changeY"
+                             :current-chart="currentChart"
+                             @charts-push="chartsPush" @mouseup="mouseup"></bs-line>
+                </draggable>
+            </div>
             <div id="bs-lines-3"></div>
         </div>
 
@@ -22,32 +29,35 @@ import G2 from '@antv/g2';
 import _ from 'lodash';
 import { DataSet } from '@antv/data-set';
 import $ from 'jquery';
+import draggable from 'vuedraggable';
 import Vue from 'vue';
 import { Slider } from 'ant-design-vue';
 import GetData from './GetData';
+import BsLine from './BsLine.vue';
 
 Vue.use(Slider);
 
 export default {
   name: 'BsLines',
+  components: { BsLine, draggable },
   data() {
     const self = this;
 
     // 折线图数据
-    const data = _.filter(GetData, (o) => o.type !== 'type0');
-    // slider数据
-    const sliderData = _.filter(GetData, (o) => o.type === 'type0');
+    const data = _.values(_.groupBy(GetData, 'type'));
+    // slider对应Chart
+    const sliderChart = {};
     // 折线图数据依赖同一个DataSet
     const ds = new DataSet({
       state: {
-        start: _.minBy(data, (o) => o.timestamp).timestamp,
-        end: _.maxBy(data, (o) => o.timestamp).timestamp,
+        start: _.minBy(GetData, (o) => o.timestamp).timestamp,
+        end: _.maxBy(GetData, (o) => o.timestamp).timestamp,
       },
     });
     // 折线图们chart合集
     const charts = [];
     // 当前选中的折线图
-    let currentChart;
+    const currentChart = {};
     // 竖线的坐标
     let position = [0, 0];
     position = new Proxy(position, {
@@ -73,7 +83,7 @@ export default {
     return {
       data,
       ds,
-      sliderData,
+      sliderChart,
       charts,
       position,
       value,
@@ -126,7 +136,7 @@ export default {
      */
     setSlider() {
       const {
-        ds, sliderData, getLine, container,
+        ds, data, getLine, container,
       } = this;
       const canvasDiv = document.createElement('div');
       canvasDiv.id = 'bs-lines-2-slider';
@@ -134,6 +144,7 @@ export default {
       const chart = new G2.Chart({
         container: 'bs-lines-2-slider',
       });
+      this.sliderChart = chart;
       chart.scale('timestamp', {
         type: 'time',
         range: [0, 1],
@@ -150,7 +161,7 @@ export default {
         xAxis: 'timestamp',
         yAxis: 'value',
         padding: [10, 50, 10, 50],
-        data: sliderData,
+        data: data[0],
         backgroundChart: {
           type: 'line',
           color: 'grey',
@@ -276,7 +287,6 @@ export default {
     },
     /**
      * 横向滑动结束触发事件
-     * @param value 横向滑动坐标值
      */
     onAfterChange() {
       const width = $('#bs-lines-left').width();
@@ -289,9 +299,9 @@ export default {
     onYValueChange() {
       const y1 = this.yValue0;
       const y2 = this.yValue1;
-      if (this.currentChart !== undefined) {
+      if (this.currentChart.chart !== undefined) {
         const index = _.findIndex(this.charts,
-          (chartObject) => chartObject.chart === this.currentChart);
+          (chartObject) => chartObject.chart === this.currentChart.chart);
         const { chart, min, max } = this.charts[index];
         let difference;
         let newMin;
@@ -307,21 +317,54 @@ export default {
         this.changeY({ chart, min: newMin, max: newMax });
       }
     },
+    /**
+     * 子组件向父组件注册新生成的chart对象
+     * @param chart G2.chart对象
+     * @param min y轴小值
+     * @param max y轴最大值
+     * @param yArray y轴滑动条数据
+     */
+    chartsPush({
+      chart, min, max, yArray,
+    }) {
+      this.charts.push({
+        chart, min, max, yArray,
+      });
+    },
+    /**
+     * 选中chart
+     * @param chart G2.chart对象
+     * @param chartElement G2.chart对象的container
+     */
+    mouseup({ chart, chartElement }) {
+      this.currentChart = { chart, chartElement };
+      const { yArray } = _.find(this.charts,
+        (chartObject) => chartObject.chart === this.currentChart.chart);
+      [this.yValue0, this.yValue1] = yArray;
+    },
+    /**
+     * slider刷新
+     */
+    sliderRefresh() {
+      $('#bs-lines-3').empty();
+      this.setSlider();
+    },
   },
   mounted() {
     this.$nextTick(() => {
       this.container = document.getElementById('bs-lines-2');
+      // this.setCharts();
       this.setSlider();
-      this.setCharts();
       this.onAfterChange();
       window.onresize = () => {
         _.forEach(this.charts, ({ chart }) => {
           const width = ($('#bs-lines').width() - $('#bs-lines-right').width()) - 10;
-          console.log(width);
           $('#bs-lines-left').width(width);
           chart.repaint();
         });
       };
+      // 手动触发resize
+      window.dispatchEvent(new Event('resize'));
     });
   },
 };
@@ -344,6 +387,6 @@ export default {
 
 #bs-lines-1 {
     width: 100%;
-    padding: 0 50px;
+    padding: 0 44px;
 }
 </style>
