@@ -1,3 +1,7 @@
+/**
+  带勾选框的虚拟树结构
+ */
+
 <template>
   <div
     ref="scrollDom"
@@ -29,11 +33,7 @@
               <span
                 class="sl-tree-vertical"
                 :class="{
-                  'sl-tree-vertical-half':
-                    item ===
-                    getRelChildren(getRelParent(item))[
-                      getRelChildren(getRelParent(item)).length - 1
-                    ]
+                  'sl-tree-vertical-half': isLast(item),
                 }"
               >
               </span>
@@ -102,8 +102,8 @@ export default {
   },
   computed: {
     splitDataList() {
-      return _.filter(this.dataList, {
-        show: true
+      return _.filter(this.dataList, (o) => {
+        return this.isShow(o)
       }).slice(this.startIndex, this.startIndex + this.limitCount);
     }
   },
@@ -118,7 +118,7 @@ export default {
   mounted() {
     this.$nextTick(() => {
       if (this.$refs.scrollDom.offsetHeight === 0) {
-        this.limitCount = Math.floor(this.height.slice(0, -2) * 1 / 33 + 2);
+        this.limitCount = Math.floor((this.height.slice(0, -2) * 1) / 33 + 2);
       } else {
         this.limitCount = Math.floor(this.$refs.scrollDom.offsetHeight / 33 + 2);
       }
@@ -128,42 +128,34 @@ export default {
     getList(array, level, retract, parent = []) {
       let target = [];
       array.forEach((item, index) => {
-        const { title, key, children, show = true } = item;
-        const isLast = array.length - 1 === index;
+        const { title, key, children } = item;
         if (children === undefined || children.length === 0) {
           target.push({
             title,
             key,
             level,
-            show,
             showChildren: true,
             children: [],
             retract,
-            isLast,
             parent,
-            checked: "0"
+            checked: "0",
           });
         } else {
-          // target.push({ title, key, level, hasChildren: true })
-          // target = target.concat(this.getList(children, level + 1))
           if (array.length - 1 === index) {
             retract.push(level);
           }
           const obj = {};
-          // parent.push(obj)
           const list = this.getList(children, level + 1, [...retract], [...parent, obj]);
           target.push(
             Object.assign(obj, {
               title,
               key,
               level,
-              show,
               showChildren: true,
               children: list,
               retract,
-              isLast,
               parent,
-              checked: "0"
+              checked: "0",
             })
           );
           target = target.concat(list);
@@ -171,17 +163,7 @@ export default {
       });
       return target;
     },
-    changeShow(children, show) {
-      children.forEach(item => {
-        item.show = !show;
-        item.showChildren = !show;
-        // if (item.children !== undefined) {
-        //   this.onSwitch(item.children)
-        // }
-      });
-    },
     onSwitch(item) {
-      this.changeShow(item.children, item.showChildren);
       item.showChildren = !item.showChildren;
       this.dataList = [...this.dataList];
     },
@@ -191,11 +173,15 @@ export default {
     },
     checkClick(item) {
       if (item.children === undefined || item.children.length === 0) {
-        this.changeChildNode(item, item.checked === "0" ? "1" : "0").then(
-          this.refreshParentsNode([item])
-        ).then(() => {
-          this.$emit('check-click', {checkeditems: this.getLeafChecked(this.dataList), item, checked: item.checked})
-        });
+        this.changeChildNode(item, item.checked === "0" ? "1" : "0")
+          .then(this.refreshParentsNode([item]))
+          .then(() => {
+            this.$emit("check-click", {
+              checkeditems: this.getLeafChecked(this.dataList),
+              item,
+              checked: item.checked
+            });
+          });
       } else if (this.parentClick) {
         const promiseArray = [];
         item.children.forEach(child => {
@@ -248,21 +234,26 @@ export default {
       });
     },
     getLeaf(items) {
-      return _.filter(items, (o) => o.children.length === 0);
+      return _.filter(items, o => o.children.length === 0);
     },
     getLeafChecked(items) {
-      return _.filter(items, (o) => o.children.length === 0 && o.checked === '1');
+      return _.filter(items, o => o.children.length === 0 && o.checked === "1");
     },
     getRelParent(item) {
       return item.parent[item.parent.length - 1];
     },
     isShow(item) {
-      return item.show;
-      // if (item.parent.length === 0) {
-      //   return true;
-      // } else {
-      //   return this.getRelParent(item).showChildren
-      // }
+      // return item.show;
+      if (item.parent.length === 0) {
+        return true;
+      } else {
+        const parent = this.getRelParent(item)
+        return this.isShow(parent) && parent.showChildren
+      }
+    },
+    isLast(item) {
+      const children = this.getRelChildren(this.getRelParent(item))
+      return item === children[children.length - 1]
     }
   }
 };
