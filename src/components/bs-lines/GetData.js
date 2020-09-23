@@ -9,4 +9,15 @@ for (let i = 0; i < 6; i += 1) {
   });
 }
 
-export default Mock.mock({ 'list|3000-4000': dataTemplate }).list;
+const GetData = Mock.mock({ 'list|300-300': dataTemplate }).list;
+const AddData = Mock.mock({
+  'list|300-300': [{
+    'timestamp|+2': 1583371760000,
+    value: () => (4 + Math.random()).toFixed(2),
+    type: 'type6',
+  }],
+}).list;
+
+export {
+  GetData, AddData,
+};

@@ -1,11 +1,18 @@
 <template>
-    <div ref="container" :style="style"></div>
+    <div ref="container" :style="style">
+        <div @click="destroy">
+          <span style="color: red">x</span>
+        </div>
+    </div>
 </template>
 
 <script>
 import G2 from '@antv/g2';
 import _ from 'lodash';
 import $ from 'jquery';
+
+var Global = G2.Global; // 获取 Global 全局对象
+Global.setTheme('dark');
 
 export default {
   name: 'BsLine',
@@ -24,6 +31,9 @@ export default {
     },
     currentChart: {
       type: Object,
+    },
+    index: {
+      type: String,
     },
   },
   data() {
@@ -114,12 +124,18 @@ export default {
         this.$emit('mouseup', { chart, chartElement: this.$refs.container });
       });
     },
+    destroy() {
+      this.$emit('destroy', { chart: this.chart, key: this.index });
+    },
   },
   mounted() {
     this.$nextTick(() => {
       this.setChart();
     });
   },
+  // beforeDestroy() {
+  //   this.destroy();
+  // },
 };
 </script>
 

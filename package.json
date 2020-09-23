@@ -8,7 +8,7 @@
     "lint": "vue-cli-service lint",
     "storybook": "start-storybook -p 6006",
     "build-storybook": "build-storybook",
-    "build:lib": "vue-cli-service build --target lib --name bsLine src/components/bs-lines/BsLines.vue"
+    "build:lib": "vue-cli-service build --target lib --name bsTree src/components/bs-tree/index.vue"
   },
   "dependencies": {
     "@antv/data-set": "^0.11.1",
@@ -25,11 +25,18 @@
     "vuex": "^3.1.2"
   },
   "devDependencies": {
+    "@babel/compat-data": "^7.10.1",
     "@babel/core": "^7.8.7",
-    "@storybook/addon-actions": "^5.3.14",
-    "@storybook/addon-links": "^5.3.14",
-    "@storybook/addons": "^5.3.14",
-    "@storybook/vue": "^5.3.14",
+    "@storybook/addon-a11y": "^5.3.19",
+    "@storybook/addon-actions": "^5.3.19",
+    "@storybook/addon-backgrounds": "^5.3.19",
+    "@storybook/addon-docs": "^5.3.19",
+    "@storybook/addon-knobs": "^5.3.19",
+    "@storybook/addon-links": "^5.3.19",
+    "@storybook/addon-storysource": "^5.3.19",
+    "@storybook/addon-viewport": "^5.3.19",
+    "@storybook/addons": "^5.3.19",
+    "@storybook/vue": "^5.3.19",
     "@vue/cli-plugin-babel": "~4.2.0",
     "@vue/cli-plugin-eslint": "~4.2.0",
     "@vue/cli-plugin-router": "~4.2.0",

@@ -8,7 +8,8 @@
                 <draggable v-model="data"  @end="sliderRefresh">
                     <bs-line v-for="item in data" :key="item[0].type" :data="item"
                              :ds="ds" :get-dv="getDv" :change-y="changeY"
-                             :current-chart="currentChart"
+                             :index="item[0].type"
+                             :current-chart="currentChart" @destroy="destroy"
                              @charts-push="chartsPush" @mouseup="mouseup"></bs-line>
                 </draggable>
             </div>
@@ -32,7 +33,7 @@ import $ from 'jquery';
 import draggable from 'vuedraggable';
 import Vue from 'vue';
 import { Slider } from 'ant-design-vue';
-import GetData from './GetData';
+// import { GetData, AddData } from './GetData';
 import BsLine from './BsLine.vue';
 
 Vue.use(Slider);
@@ -40,18 +41,25 @@ Vue.use(Slider);
 export default {
   name: 'BsLines',
   components: { BsLine, draggable },
+  props: {
+    initData: {
+      type: Array,
+      default: () => [],
+    },
+  },
   data() {
     const self = this;
 
     // 折线图数据
-    const data = _.values(_.groupBy(GetData, 'type'));
+    // const data = _.values(_.groupBy(GetData, 'type'));
+    const data = _.values(_.groupBy(this.initData, 'type'));
     // slider对应Chart
     const sliderChart = {};
     // 折线图数据依赖同一个DataSet
     const ds = new DataSet({
       state: {
-        start: _.minBy(GetData, (o) => o.timestamp).timestamp,
-        end: _.maxBy(GetData, (o) => o.timestamp).timestamp,
+        start: _.minBy(this.initData, (o) => o.timestamp).timestamp,
+        end: _.maxBy(this.initData, (o) => o.timestamp).timestamp,
       },
     });
     // 折线图们chart合集
@@ -120,6 +128,10 @@ export default {
           chart.guide().line({
             start: () => [tmp.timestamp, 'start'],
             end: () => [tmp.timestamp, 'end'],
+            lineStyle: {
+              stroke: '#999', // 线的颜色
+              lineDash: [1, 0]
+            }, // 图形样式配置
           });
           chart.guide().text({
             top: true,
@@ -338,9 +350,19 @@ export default {
      */
     mouseup({ chart, chartElement }) {
       this.currentChart = { chart, chartElement };
-      const { yArray } = _.find(this.charts,
-        (chartObject) => chartObject.chart === this.currentChart.chart);
-      [this.yValue0, this.yValue1] = yArray;
+      this.ySliderRefresh({ chart });
+      // const { yArray } = _.find(this.charts,
+      //   (chartObject) => chartObject.chart === this.currentChart.chart);
+      // [this.yValue0, this.yValue1] = yArray;
+    },
+    ySliderRefresh({ chart }) {
+      if (chart === undefined) {
+        [this.yValue0, this.yValue1] = [50, 50];
+      } else {
+        const { yArray } = _.find(this.charts,
+          (chartObject) => chartObject.chart === this.currentChart.chart);
+        [this.yValue0, this.yValue1] = yArray;
+      }
     },
     /**
      * slider刷新
@@ -349,6 +371,27 @@ export default {
       $('#bs-lines-3').empty();
       this.setSlider();
     },
+    dataAdd(data) {
+      // this.data.push(_.values(_.groupBy(data, 'type')));
+      this.data = _.concat(this.data, _.values(_.groupBy(data, 'type')));
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 0);
+    },
+    destroy({ chart, key }) {
+      const index = _.findIndex(this.data, (o) => o[0].type === key);
+      this.data.splice(index, 1);
+      this.charts = _.dropWhile(this.charts, (o) => o.chart === chart);
+      if (this.currentChart.chart === chart) {
+        this.currentChart = {};
+        this.ySliderRefresh({ chart: undefined });
+      }
+    },
+  },
+  watch: {
+    charts() {
+      this.getLine();
+    },
   },
   mounted() {
     this.$nextTick(() => {
@@ -356,15 +399,31 @@ export default {
       // this.setCharts();
       this.setSlider();
       this.onAfterChange();
-      window.onresize = () => {
-        _.forEach(this.charts, ({ chart }) => {
-          const width = ($('#bs-lines').width() - $('#bs-lines-right').width()) - 10;
-          $('#bs-lines-left').width(width);
-          chart.repaint();
-        });
-      };
+      // TODO onresize覆盖
+      window.addEventListener('resize', () => {
+        _.debounce(() => {
+          _.forEach(this.charts, ({ chart }) => {
+            const width = ($('#bs-lines').width() - $('#bs-lines-right').width()) - 10;
+            $('#bs-lines-left').width(width);
+            chart.repaint();
+          });
+        }, 500, { maxWait: 2000 })();
+      });
+      // window.onresize = () => {
+      //   window.onresize();
+      //   _.forEach(this.charts, ({ chart }) => {
+      //     const width = ($('#bs-lines').width() - $('#bs-lines-right').width()) - 10;
+      //     $('#bs-lines-left').width(width);
+      //     chart.repaint();
+      //   });
+      // };
       // 手动触发resize
       window.dispatchEvent(new Event('resize'));
+
+      // setTimeout(() => {
+      //   this.dataAdd(AddData);
+      //   window.dispatchEvent(new Event('resize'));
+      // }, 5000);
     });
   },
 };
