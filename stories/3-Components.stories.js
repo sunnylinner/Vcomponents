@@ -25,7 +25,7 @@ export const Lines = () => ({
 
 export const Tree = () => ({
   components: { Tree: slTree },
-  template: `<tree :tree-data="treeData" :height="'900px'" @check-click="onclick"></tree>`,
+  template: `<tree :tree-data="treeData" :height="'900px'" @check-click="onclick" @select-click="onclick"></tree>`,
   data() {
     return {
       treeData: [
@@ -107,6 +107,6 @@ export const Tree = () => ({
     },
     onclick(obj) {
       console.log(obj);
-    }
+    },
   },
 });

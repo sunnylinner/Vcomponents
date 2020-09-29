@@ -66,7 +66,7 @@
                 @click="checkClick(item)"
               ></span>
             </span>
-            <span class="sl-tree-title">{{ item.title }}</span>
+            <span class="sl-tree-title" @click="selectClick(item)" draggable="true">{{ item.title }}</span>
           </div>
         </li>
       </template>
@@ -91,7 +91,7 @@ export default {
     parentClick: {
       type: Boolean,
       default: () => false
-    }
+    },
   },
   data() {
     return {
@@ -170,6 +170,9 @@ export default {
     scroll() {
       const scrollTop = this.$refs.scrollDom.scrollTop;
       this.startIndex = Math.floor(scrollTop / 33);
+    },
+    selectClick(item) {
+      this.$emit('select-click', {item})
     },
     checkClick(item) {
       if (item.children === undefined || item.children.length === 0) {
@@ -254,7 +257,7 @@ export default {
     isLast(item) {
       const children = this.getRelChildren(this.getRelParent(item))
       return item === children[children.length - 1]
-    }
+    },
   }
 };
 </script>
