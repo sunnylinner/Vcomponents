@@ -1,4 +1,4 @@
-# line-component
+# Vcomponent
 
 ## Project setup
 ```
