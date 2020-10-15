@@ -55,7 +55,7 @@
               <span v-if="item.level !== 0" class="sl-tree-polyLine"></span>
               <span class="sl-tree-line-inner"></span>
             </span>
-            <span class="sl-tree-checkbox">
+            <span v-if="canChecked" class="sl-tree-checkbox">
               <span
                 class="sl-tree-checkbox-inner"
                 :class="{
@@ -66,7 +66,7 @@
                 @click="checkClick(item)"
               ></span>
             </span>
-            <span class="sl-tree-title" @click="selectClick(item)" draggable="true">{{ item.title }}</span>
+            <span class="sl-tree-title" @click="selectClick(item)" :draggable="leafDrag && item.children.length === 0">{{ item.title }}</span>
           </div>
         </li>
       </template>
@@ -92,6 +92,18 @@ export default {
       type: Boolean,
       default: () => false
     },
+    checkedList: {
+      type: Array,
+      default: () => []
+    },
+    canChecked: {
+      type: Boolean,
+      default: () => true,
+    },
+    leafDrag: {
+      type: Boolean,
+      default: () => false,
+    }
   },
   data() {
     return {
@@ -110,12 +122,31 @@ export default {
   watch: {
     treeData: {
       handler(newValue) {
-        this.dataList = this.getList(newValue, 0, []);
+        this.dataList = this.getList({ array: newValue, level: 0, parent: null, retract: [] }).allList;
+      },
+      immediate: true
+    },
+    checkedList: {
+      handler(newValue) {
+        this.checkedList.forEach((key) => {
+          const item = _.find(this.dataList, { key });
+          if (item !== undefined && item.checked !== true) {
+            this.checkChange(item);
+          }
+        });
+        // this.refreshCheckedList();
       },
       immediate: true
     }
   },
   mounted() {
+    this.checkedList.forEach((key) => {
+      const item = _.find(this.dataList, { key });
+      if (item !== undefined && item.checked !== true) {
+        this.checkChange(item);
+      }
+    });
+    this.refreshCheckedList();
     this.$nextTick(() => {
       if (this.$refs.scrollDom.offsetHeight === 0) {
         this.limitCount = Math.floor((this.height.slice(0, -2) * 1) / 33 + 2);
@@ -125,40 +156,47 @@ export default {
     });
   },
   methods: {
-    getList(array, level, retract, parent = []) {
-      let target = [];
+    getList({ array, level, parent, retract }) {
+      let target = {
+        allList: [],
+        currentList: [],
+      };
       array.forEach((item, index) => {
-        const { title, key, children } = item;
-        if (children === undefined || children.length === 0) {
-          target.push({
+        const { title, key, children, props } = item;
+        if (children.length === 0) {
+          const obj = {
             title,
             key,
             level,
+            props,
             showChildren: true,
+            checked: '0',
             children: [],
-            retract,
             parent,
-            checked: "0",
-          });
+            retract
+          };
+          target.currentList.push(obj);
+          target.allList.push(obj);
         } else {
           if (array.length - 1 === index) {
             retract.push(level);
           }
           const obj = {};
-          const list = this.getList(children, level + 1, [...retract], [...parent, obj]);
-          target.push(
-            Object.assign(obj, {
-              title,
-              key,
-              level,
-              showChildren: true,
-              children: list,
-              retract,
-              parent,
-              checked: "0",
-            })
-          );
-          target = target.concat(list);
+          const { allList, currentList } = this.getList({ array: children, level: level + 1, parent: obj, retract: [...retract] })
+          Object.assign(obj, {
+            title,
+            key,
+            level,
+            props,
+            showChildren: true,
+            checked: "0",
+            children: currentList,
+            parent,
+            retract,
+          })
+          target.currentList.push(obj);
+          target.allList.push(obj);
+          target.allList = target.allList.concat(allList);
         }
       });
       return target;
@@ -174,89 +212,99 @@ export default {
     selectClick(item) {
       this.$emit('select-click', {item})
     },
-    checkClick(item) {
-      if (item.children === undefined || item.children.length === 0) {
-        this.changeChildNode(item, item.checked === "0" ? "1" : "0")
-          .then(this.refreshParentsNode([item]))
-          .then(() => {
-            this.$emit("check-click", {
-              checkeditems: this.getLeafChecked(this.dataList),
-              item,
-              checked: item.checked
-            });
-          });
-      } else if (this.parentClick) {
-        const promiseArray = [];
-        item.children.forEach(child => {
-          if (child.children === undefined || child.children.length === 0) {
-            promiseArray.push(this.changeChildNode(child, item.checked === "1" ? "0" : "1"));
+    changeChildrenCheck(item, sign) {
+      item.children.forEach((child) => {
+        const signs = {
+          '0->1': () => {
+            child.checked = '1';
+            this.changeChildrenCheck(child, sign);
+          },
+          '1->0': () => {
+            child.checked = '0';
+            this.changeChildrenCheck(child, sign);
+          },
+          '2->1': () => {
+            if (child.checked !== '1') {
+              child.checked = '1';
+              this.changeChildrenCheck(child, sign);
+            }
           }
-        });
-        Promise.all(promiseArray).then(items => {
-          this.refreshParentsNode(items);
-        });
-      }
+        };
+        signs[sign]();
+      })
     },
-    async changeChildNode(item, checked) {
-      item.checked = checked;
-      return await item;
-    },
-    refreshParentNode(item) {
-      item.forEach(parent => {
+    changeParentCheck(item) {
+      if (item.parent !== null) {
         let isAll0 = true;
         let isAll1 = true;
-        this.getRelChildren(parent).forEach(child => {
+        item.parent.children.forEach(child => {
           if (isAll0 === false && isAll1 === false) {
             return false;
           }
-          if (child.checked === "2") {
+          if (child.checked === '2') {
             isAll0 = false;
             isAll1 = false;
-          } else if (child.checked === "0") {
+          } else if (child.checked === '0') {
             isAll1 = false;
-          } else if (child.checked === "1") {
+          } else if (child.checked === '1') {
             isAll0 = false;
           }
-        });
-        if (isAll0) parent.checked = "0";
-        else if (isAll1) parent.checked = "1";
-        else parent.checked = "2";
-      });
+        })
+        if (isAll0 && item.parent.checked !== '0') {
+          item.parent.checked = '0';
+          this.changeParentCheck(item.parent);
+        }
+        else if (isAll1 && item.parent.checked !== '1') {
+          item.parent.checked = '1';
+          this.changeParentCheck(item.parent);
+        }
+        else if (item.parent.checked !== '2') {
+          item.parent.checked = '2';
+          this.changeParentCheck(item.parent);
+        };
+      }
     },
-    refreshParentsNode(items) {
-      let nodes = [];
-      items.forEach(item => {
-        nodes.push(...item.parent);
-      });
-      nodes = _.orderBy(Array.from(new Set(nodes)), ["level"], ["desc"]);
-      this.refreshParentNode(nodes);
+    checkClick(item) {
+      this.checkChange(item);
+      this.refreshCheckedList(item);
     },
-    getRelChildren(item) {
-      return _.filter(item.children, {
-        level: item.level + 1
-      });
+    checkChange(item) {
+      if (!this.parentClick && item.children.length !== 0) {
+        return;
+      }
+      if(item.checked === '0') {
+        item.checked = '1';
+        this.changeChildrenCheck(item, '0->1');
+      } else if (item.checked === '1') {
+        item.checked = '0';
+        this.changeChildrenCheck(item, '1->0');
+      } else if (item.checked === '2') {
+        item.checked = '1';
+        this.changeChildrenCheck(item, '2->1');
+      }
+
+      this.changeParentCheck(item);
     },
-    getLeaf(items) {
-      return _.filter(items, o => o.children.length === 0);
-    },
-    getLeafChecked(items) {
-      return _.filter(items, o => o.children.length === 0 && o.checked === "1");
-    },
-    getRelParent(item) {
-      return item.parent[item.parent.length - 1];
+    refreshCheckedList(item = undefined) {
+      const checkedList = [];
+      this.dataList.forEach(item => {
+        if (item.children.length === 0 && item.checked === '1') {
+          checkedList.push(item.key)
+        }
+      })
+      this.$emit('check-refresh', {checkedList, item});
     },
     isShow(item) {
       // return item.show;
-      if (item.parent.length === 0) {
+      if (item.parent === null) {
         return true;
       } else {
-        const parent = this.getRelParent(item)
-        return this.isShow(parent) && parent.showChildren
+        return this.isShow(item.parent) && item.parent.showChildren
       }
     },
     isLast(item) {
-      const children = this.getRelChildren(this.getRelParent(item))
-      return item === children[children.length - 1]
+      const children = item.parent.children;
+      return item === children[children.length - 1];
     },
   }
 };
